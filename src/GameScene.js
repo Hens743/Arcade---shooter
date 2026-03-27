@@ -186,4 +186,63 @@ class GameScene extends Phaser.Scene {
             let nightmareSpeed = speed * 1.2;
             let offsets = [-0.4, -0.2, 0, 0.2, 0.4]; 
             for (let offset of offsets) {
-                spawnBossBullet(Math.cos(angleToPlayer + offset)
+                spawnBossBullet(Math.cos(angleToPlayer + offset) * nightmareSpeed, Math.sin(angleToPlayer + offset) * nightmareSpeed);
+            }
+        }
+    }
+
+    triggerBomb() {
+        if (this.bombs <= 0 || this.bombCooldown || this.isGameOver) return;
+        this.bombs--; this.bombCooldown = true; this.updateUI(); sfx('boom');
+        this.cameras.main.flash(400, 255, 255, 255); this.cameras.main.shake(400, 0.03);
+        if (this.boss && this.boss.active) this.damageBoss(25);
+        this.enemies.children.each(e => { if(e.active) { this.explosionEmitter.emitParticleAt(e.x, e.y, 15); e.destroy(); } });
+        this.enemyBullets.children.each(eb => { eb.setActive(false).setVisible(false); eb.body.enable = false; });
+        let t = this.add.text(160, 120, 'BOMB!', { fontSize: '20px', fill: '#ff0000', fontStyle: 'bold' }).setOrigin(0.5);
+        this.tweens.add({ targets: t, alpha: 0, scale: 2, duration: 600, onComplete: () => t.destroy() });
+        setTimeout(() => this.bombCooldown = false, 1500);
+    }
+
+    spawnEnemy() {
+        if (this.isGameOver || (this.boss && this.boss.active)) return;
+        
+        if (this.level >= 2) { this.spawnBoss(); return; }
+
+        let types = ['enemyImg', 'enemyZigZag', 'enemyHunter'];
+        let picked = Phaser.Math.RND.pick(types);
+        let e = this.enemies.create(Phaser.Math.Between(30, 290), -20, picked);
+        e.enemyType = picked === 'enemyZigZag' ? 'zigzag' : (picked === 'enemyHunter' ? 'hunter' : 'standard');
+        e.startX = e.x; e.birthTime = this.time.now;
+        e.setVelocityY((100 + (this.level * 15)) * this.diffMult);
+        
+        if (this.score >= 1000 && !this.boss) this.spawnBoss(); 
+    }
+
+    spawnBoss() {
+        this.centerText.setText(`WARNING: BOSS ${this.level}`).setVisible(true).setAlpha(1);
+        this.tweens.add({ targets: this.centerText, alpha: 0, duration: 250, yoyo: true, repeat: 5, onComplete: () => this.centerText.setVisible(false) });
+        
+        this.bossMaxHP = (60 + (this.level * 40)) * this.diffMult;
+        this.bossHP = this.bossMaxHP;
+        this.boss = this.bossGroup.create(160, -60, 'bossImg').setDepth(20);
+        this.boss.body.setSize(42, 42); 
+        this.bossUI.setVisible(true);
+        this.spawnTimer.paused = true;
+    }
+
+    drawBossHealthBar() {
+        this.bossBar.clear();
+        let width = Math.max(0, (this.bossHP / this.bossMaxHP) * 118);
+        this.bossBar.fillStyle(0xff0055).fillRect(-59, 1, width, 6);
+    }
+
+    damageBoss(amount) {
+        if (!this.boss || !this.boss.active) return;
+        this.bossHP -= amount; sfx('boom');
+        this.boss.setTint(0xffffff);
+        this.time.delayedCall(50, () => { if(this.boss && this.boss.active) this.boss.clearTint(); });
+
+        if (this.bossHP <= 0) {
+            this.explosionEmitter.emitParticleAt(this.boss.x, this.boss.y, 100);
+            this.cameras.main.shake(600, 0.04); sfx('boom');
+            this.boss.destroy(); this.boss = null; this
