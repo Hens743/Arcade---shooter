@@ -40,4 +40,17 @@ class MenuScene extends Phaser.Scene {
         this.add.image(120, 165, 'powShield'); 
         this.add.text(132, 165, 'ARMOR', { fontSize: '8px', fill: '#fff' }).setOrigin(0, 0.5);
         
-        this.add.image(200, 165, 'powBomb');
+        this.add.image(200, 165, 'powBomb'); 
+        this.add.text(212, 165, 'BOMB', { fontSize: '8px', fill: '#fff' }).setOrigin(0, 0.5);
+
+        // --- BOTTOM: START PROMPT ---
+        let prompt = this.add.text(160, 205, 'PRESS [1] NORMAL  |  PRESS [2] HARD', { fontSize: '10px', fill: '#00ff00', fontStyle: 'bold' }).setOrigin(0.5);
+        
+        // Add a pulsing effect to the prompt so it catches the eye!
+        this.tweens.add({ targets: prompt, alpha: 0.2, duration: 600, yoyo: true, repeat: -1 });
+        
+        // Inputs
+        this.input.keyboard.on('keydown-ONE', () => this.scene.start('GameScene', { diff: 1 }));
+        this.input.keyboard.on('keydown-TWO', () => this.scene.start('GameScene', { diff: 1.5 }));
+    }
+}
