@@ -245,4 +245,108 @@ class GameScene extends Phaser.Scene {
         if (this.bossHP <= 0) {
             this.explosionEmitter.emitParticleAt(this.boss.x, this.boss.y, 100);
             this.cameras.main.shake(600, 0.04); sfx('boom');
-            this.boss.destroy(); this.boss = null; this
+            this.boss.destroy(); this.boss = null; this.bossUI.setVisible(false);
+            
+            this.score += 2000 * this.level; 
+            this.level++; 
+            this.bombs++; 
+            
+            if (this.level > 3) {
+                this.triggerVictory();
+            } else {
+                this.spawnTimer.paused = false;
+                this.centerText.setText(`LEVEL ${this.level}\nBOSS RUSH!`).setVisible(true).setAlpha(1);
+                this.tweens.add({ targets: this.centerText, alpha: 0, delay: 1500, duration: 500, onComplete: () => this.centerText.setVisible(false) });
+            }
+            this.updateUI();
+        }
+    }
+
+    hitEnemy(bullet, enemy) {
+        bullet.setActive(false).setVisible(false).body.enable = false;
+        this.explosionEmitter.emitParticleAt(enemy.x, enemy.y, 10);
+        if (Phaser.Math.Between(1, 100) <= 20) this.dropPowerup(enemy.x, enemy.y);
+        enemy.destroy(); sfx('boom');
+        this.score += 10 * this.diffMult; this.updateUI();
+    }
+
+    hitBoss(bullet, bossTarget) {
+        bullet.setActive(false).setVisible(false).body.enable = false;
+        this.damageBoss(1);
+    }
+
+    dropPowerup(x, y) {
+        let types = ['powPower', 'powPower', 'powShield', 'powBomb', 'powScore', 'powScore', 'powLife'];
+        let p = this.powerups.create(x, y, Phaser.Math.RND.pick(types));
+        p.dropType = p.texture.key; p.setVelocityY(70);
+    }
+
+    collectPowerup(player, p) {
+        sfx('powerup'); let label = "";
+        if (p.dropType === 'powPower') { 
+            if (this.powerLevel < 5) { this.powerLevel++; label = "POWER UP!"; } 
+            else { this.score += 200; label = "MAX POWER! +200"; }
+        }
+        else if (p.dropType === 'powScore') { this.score += 500; label = "BONUS +500!"; }
+        else if (p.dropType === 'powLife') { this.lives++; label = "1UP!"; }
+        else if (p.dropType === 'powShield') { this.hasShield = true; this.shieldAura.setVisible(true); label = "ARMOR!"; }
+        else if (p.dropType === 'powBomb') { this.bombs++; label = "BOMB+1"; }
+        
+        let ft = this.add.text(player.x, player.y - 20, label, { fontSize: '10px', fill: '#ffff00', fontStyle: 'bold' }).setOrigin(0.5);
+        this.tweens.add({ targets: ft, y: player.y - 60, alpha: 0, duration: 800, onComplete: () => ft.destroy() });
+        p.destroy(); this.updateUI();
+    }
+
+    hitPlayer(player, hazard) {
+        if (this.isInvulnerable || this.isGameOver) return;
+        sfx('boom');
+        if (this.hasShield) {
+            this.hasShield = false; this.shieldAura.setVisible(false);
+            if(hazard.texture && hazard.texture.key === 'enemyBulletImg') hazard.destroy();
+            this.makeInvulnerable(1500); return;
+        }
+        this.lives--; 
+        this.powerLevel = Math.max(1, this.powerLevel - 1);
+        this.updateUI(); 
+        
+        if (this.lives <= 0) {
+            this.isGameOver = true; this.physics.pause(); this.engineTrail.stop();
+            this.add.text(160, 120, 'GAME OVER\nPRESS R TO MENU', { fontSize: '20px', fill: '#ff0000', align: 'center', backgroundColor: '#000', fontStyle: 'bold' }).setOrigin(0.5);
+            this.saveScoreToLeaderboard();
+        } else {
+            this.makeInvulnerable(2000); this.triggerBomb(); 
+        }
+    }
+
+    makeInvulnerable(dur) {
+        this.isInvulnerable = true;
+        this.tweens.add({ targets: this.player, alpha: 0.2, duration: 100, yoyo: true, repeat: dur/200, onComplete: () => { this.player.alpha = 1; this.isInvulnerable = false; }});
+    }
+
+    saveScoreToLeaderboard() {
+        let scores = JSON.parse(localStorage.getItem('neonLeaderboard')) || [0, 0, 0];
+        scores.push(Math.floor(this.score));
+        scores.sort((a, b) => b - a);
+        scores = scores.slice(0, 3);
+        localStorage.setItem('neonLeaderboard', JSON.stringify(scores));
+    }
+
+    triggerVictory() {
+        this.isGameOver = true; this.physics.pause(); this.engineTrail.stop();
+        this.saveScoreToLeaderboard();
+        
+        let victoryScreen = this.add.container(160, 120);
+        let bg = this.add.graphics().fillStyle(0x000000, 0.8).fillRect(-160, -120, 320, 240);
+        let title = this.add.text(0, -30, 'MISSION ACCOMPLISHED', { fontSize: '16px', fill: '#00ffff', fontStyle: 'bold' }).setOrigin(0.5);
+        let stats = this.add.text(0, 0, `FINAL SCORE: ${Math.floor(this.score)}`, { fontSize: '12px', fill: '#fff' }).setOrigin(0.5);
+        let prompt = this.add.text(0, 40, 'PRESS R TO RETURN', { fontSize: '10px', fill: '#00ff00', align: 'center' }).setOrigin(0.5);
+        
+        this.tweens.add({ targets: prompt, alpha: 0, duration: 400, yoyo: true, repeat: -1 });
+        victoryScreen.add([bg, title, stats, prompt]);
+    }
+
+    updateUI() {
+        this.scoreText.setText(`SCORE: ${Math.floor(this.score)}`);
+        this.statText.setText(`PWR: ${this.powerLevel}/5 | LIVES: ${this.lives} | BOMBS: ${this.bombs}\nLEVEL: ${this.level}`);
+    }
+}
